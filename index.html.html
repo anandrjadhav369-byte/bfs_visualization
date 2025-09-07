@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BFS Visualizer – Build & Edit Your Own Graph</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#111827; --soft:#1f2937; --text:#e5e7eb; --muted:#9ca3af;
+    --accent:#60a5fa; --queued:#fbbf24; --done:#34d399; --edge:#94a3b8; --edgeHl:#f472b6;
+    --btn:#334155; --btnHover:#475569; --warn:#f87171; --ok:#34d399; --info:#38bdf8;
+  }
+  *{box-sizing:border-box; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Inter", Arial;}
+  body{margin:0;background:var(--bg);color:var(--text);} 
+  header{ padding:18px 24px;border-bottom:1px solid #1f2937;background:linear-gradient(180deg,#0b1228,#0f172a);} 
+  header h1{margin:0;font-size:20px;letter-spacing:.2px}
+  header p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+  .wrap{display:grid;grid-template-columns: 3fr 2fr; gap:16px; padding:16px; min-height: calc(100vh - 80px);} 
+  .card{background:var(--panel); border:1px solid #1f2937; border-radius:12px; overflow:hidden;}
+  .card h2{margin:0; padding:12px 14px; font-size:16px; border-bottom:1px solid #1f2937;background:#0b1328;}
+  .stage{position:relative; height:560px;} 
+  svg{width:100%; height:100%; display:block; background:radial-gradient(1200px 400px at 50% -50%, #1a2443 0%, #0f172a 60%);} 
+  .edge{stroke:var(--edge); stroke-width:3;}
+  .edge.hl{stroke:var(--edgeHl); stroke-width:4.5;}
+  .edge.clickable{cursor:pointer;}
+  .node{cursor:pointer;} 
+  .node circle{stroke:#111827; stroke-width:3; fill:#fff;} 
+  .node text{font-size:16px; font-weight:700; fill:#111827; pointer-events:none;} 
+  .node.queued circle{fill:var(--queued);} 
+  .node.current circle{fill:var(--accent); fill-opacity:.95;} 
+  .node.done circle{fill:var(--done); fill-opacity:.95;} 
+  .node.pick circle{stroke:var(--info); stroke-width:5;}
+  .hud{ position:absolute; left:12px; bottom:12px; right:12px; display:flex; gap:12px; align-items:center; justify-content:space-between; background:rgba(15,23,42,.6); border:1px solid #1f2937; padding:10px 12px; border-radius:10px; backdrop-filter: blur(6px);} 
+  .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap;} 
+  button{ background:var(--btn); color:var(--text); border:1px solid #263244; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600; letter-spacing:.3px;}
+  button:hover{background:var(--btnHover);} 
+  button:disabled{opacity:.4; cursor:not-allowed;} 
+  .pill{padding:6px 10px; border-radius:999px; background:#0b1328; border:1px solid #1f2937; color:var(--muted); font-size:12.5px;}
+  .pill.primary{color:#e0f2fe; background:#0b2138; border-color:#153053}
+  .panel{ display:grid; grid-template-rows: auto auto 1fr; gap:12px; padding:12px; } 
+  .sub{display:flex; gap:12px; flex-wrap:wrap;} 
+  .box{flex:1; background:var(--soft); border:1px solid #1f2937; border-radius:10px; padding:10px;} 
+  .box h3{margin:0 0 6px 0; font-size:14px; color:#cbd5e1} 
+  .strip{display:flex; gap:6px; flex-wrap:wrap; align-items:center; min-height:36px} 
+  .chip{ min-width:30px; text-align:center; padding:6px 10px; border-radius:8px; font-weight:700; letter-spacing:.3px; border:1.5px solid #0b1328; background:#0b1328; } 
+  .chip.queued{background:var(--queued); color:#111827} 
+  .chip.current{background:var(--accent); color:#0b1328} 
+  .chip.done{background:var(--done); color:#0b1328} 
+  pre{margin:0; padding:10px; background:#0b1328; border:1px solid #1f2937; border-radius:10px; overflow:auto; max-height:240px; font-size:13px; line-height:1.45;} 
+  .code-line{display:block; padding:3px 8px; border-radius:6px;} 
+  .code-line.hl{background:#17213d; outline:1px solid #1f2b4f;} 
+  .legend{display:flex; gap:8px; align-items:center; font-size:12.5px; color:var(--muted)} 
+  .legend span{display:inline-flex; align-items:center; gap:6px} 
+  .dot{width:14px; height:14px; border-radius:50%;} 
+  .dot.q{background:var(--queued)} 
+  .dot.c{background:var(--accent)} 
+  .dot.d{background:var(--done)} 
+  .note{color:var(--muted); font-size:12.5px}
+  .error{color:var(--warn); font-size:12.5px; margin-top:6px}
+  .footer{padding:10px 14px; color:var(--muted); font-size:12px; border-top:1px solid #1f2937;}
+  input[type="range"]{accent-color:#60a5fa}
+  .status{font-size:12.5px; color:#cbd5e1}
+  label small{color:var(--muted)}
+  input, select, textarea{width:100%; background:#0b1328; color:#e5e7eb; border:1px solid #1f2937; border-radius:8px; padding:8px;}
+  textarea{min-height:110px; font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;}
+  .row{display:grid; grid-template-columns: 1fr 1fr; gap:10px;}
+  .toolbar{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+  .modeActive{outline:2px solid var(--info)}
+</style>
+</head>
+<body>
+  <header>
+    <h1>Breadth‑First Search (BFS) – Build & Edit Your Own Graph</h1>
+    <p>Set vertices/edges or edit by clicking. Run BFS with <b>Play</b> or <b>Step</b>. No libraries required.</p>
+  </header>
+
+  <main class="wrap">
+    <!-- Left: Graph -->
+    <section class="card">
+      <h2>Graph</h2>
+      <div class="stage">
+        <svg id="graph" viewBox="0 0 800 560" aria-label="BFS Graph">
+          <g id="edges"></g>
+          <g id="nodes"></g>
+        </svg>
+
+        <div class="hud">
+          <div class="controls">
+            <button id="btnStep">Step</button>
+            <button id="btnPlay">Play</button>
+            <button id="btnPause" disabled>Pause</button>
+            <button id="btnReset">Reset</button>
+            <span class="pill status" id="statusText">Status: idle</span>
+          </div>
+          <div class="controls">
+            <label class="pill" style="display:flex; align-items:center; gap:8px;">
+              Speed
+              <input type="range" id="speed" min="0.25" max="2" step="0.25" value="1" title="Playback Speed (0.25x – 2x)"/>
+              <span id="speedVal">1x</span>
+            </label>
+            <div class="legend">
+              <span><span class="dot q"></span>Queued</span>
+              <span><span class="dot c"></span>Current</span>
+              <span><span class="dot d"></span>Done</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <span class="note">Edit modes: <b>Add Vertex</b> (auto‑place), <b>Delete Vertex</b> (click node), <b>Add Edge</b> (click two nodes), <b>Delete Edge</b> (click edge). Editing is disabled while BFS is running.</span>
+      </div>
+    </section>
+
+    <!-- Right: Panels -->
+    <aside class="card panel">
+      <div class="box">
+        <h3>Graph Builder</h3>
+        <div class="row">
+          <label>Vertices (n)
+            <input type="number" id="nVerts" min="2" max="26" value="6" />
+          </label>
+          <label>Edges (m) <small>(lines in the box)</small>
+            <input type="number" id="mEdges" min="0" value="6" />
+          </label>
+        </div>
+        <div class="row">
+          <label>Labels
+            <select id="labelMode">
+              <option value="letters" selected>Letters (A, B, C, ...)</option>
+              <option value="numbers">Numbers (1..n)</option>
+              <option value="custom">Custom (comma‑separated)</option>
+            </select>
+          </label>
+          <label>Start Node
+            <select id="startSelect"></select>
+          </label>
+        </div>
+        <label id="customLbl" style="display:none; margin-top:8px;">Custom labels (comma‑separated)
+          <input type="text" id="customLabels" placeholder="e.g., Alpha,Beta,Gamma,Delta"/>
+        </label>
+        <label style="margin-top:8px;">Edges (one per line, space/comma separated pairs)
+          <textarea id="edgesText" placeholder="A B\nA C\nB D\nB E\nC F\nC E"></textarea>
+        </label>
+        <div class="toolbar">
+          <button id="btnBuild">Build Graph</button>
+          <button id="btnSample">Sample</button>
+          <button id="btnRandom">Random</button>
+          <span class="pill">or use Edit modes ↓</span>
+        </div>
+        <div id="err" class="error" role="alert" aria-live="polite"></div>
+      </div>
+
+      <div class="box">
+        <h3>Graph Editing (click-based)</h3>
+        <div class="toolbar">
+          <button id="modeAddV">Add Vertex</button>
+          <button id="modeDelV">Delete Vertex</button>
+          <button id="modeAddE">Add Edge</button>
+          <button id="modeDelE">Delete Edge</button>
+          <button id="modeNone" class="pill primary">Done Editing</button>
+        </div>
+        <div class="note" id="editHint">Hint: Choose an edit mode. Example: click <b>Add Edge</b> then click two nodes to connect.</div>
+      </div>
+
+      <div class="sub">
+        <div class="box">
+          <h3>Queue (front → back)</h3>
+          <div id="queue" class="strip" aria-live="polite" aria-label="Queue state"></div>
+        </div>
+        <div class="box">
+          <h3>Traversal Order (dequeue sequence)</h3>
+          <div id="order" class="strip"></div>
+        </div>
+      </div>
+
+      <div class="box">
+        <h3>Explanation</h3>
+        <div id="explain" class="note">Define n and m, build the graph or use edit modes, then run BFS.</div>
+      </div>
+
+      <div class="box">
+        <h3>Pseudocode (highlighted as BFS runs)</h3>
+<pre aria-label="BFS pseudocode"><code>
+<span id="L1" class="code-line">1  mark all nodes unvisited</span>
+<span id="L2" class="code-line">2  enqueue(start); visited[start] = true</span>
+<span id="L3" class="code-line">3  while queue is not empty:</span>
+<span id="L4" class="code-line">4      u = dequeue()</span>
+<span id="L5" class="code-line">5      for v in adjacency[u]:</span>
+<span id="L6" class="code-line">6          if not visited[v]:</span>
+<span id="L7" class="code-line">7              visited[v] = true; enqueue(v)</span>
+</code></pre>
+      </div>
+    </aside>
+  </main>
+
+<script>
+/* ====== DOM references ====== */
+const svg = document.getElementById('graph');
+const gEdges = document.getElementById('edges');
+const gNodes = document.getElementById('nodes');
+const queueEl = document.getElementById('queue');
+const orderEl = document.getElementById('order');
+const explainEl = document.getElementById('explain');
+const statusText = document.getElementById('statusText');
+const errEl = document.getElementById('err');
+const startSelect = document.getElementById('startSelect');
+const editHint = document.getElementById('editHint');
+
+/* ====== Utility helpers ====== */
+function qs(id){ return document.getElementById(id); }
+function setHL(lines=[]){ for (let i=1;i<=7;i++) qs('L'+i).classList.toggle('hl', lines.includes(i)); }
+function makeChip(text, cls=''){ const d=document.createElement('div'); d.className='chip '+cls; d.textContent=text; return d; }
+function updateQueue(q){ queueEl.innerHTML=''; q.forEach(id=>queueEl.appendChild(makeChip(id,'queued'))); }
+function updateOrder(arr){ orderEl.innerHTML=''; arr.forEach(id=>orderEl.appendChild(makeChip(id,'done'))); }
+function explain(html){ explainEl.innerHTML = html; }
+function error(msg){ errEl.textContent = msg || ''; }
+
+/* ====== Graph state ====== */
+let nodes = [];   // [{id,x,y}]
+let edges = [];   // [[u,v], ...]
+let adj = new Map();
+let nodeById = new Map();
+let edgeEls = [];
+
+/* ====== Label helpers ====== */
+function lettersLabel(k){ // 0-based -> A, B, ... AA
+  let x=k, s='';
+  do{ s=String.fromCharCode(65+(x%26))+s; x=Math.floor(x/26)-1; }while(x>=0);
+  return s;
+}
+function makeLabels(n, mode, customStr){
+  if (mode==='numbers') return Array.from({length:n}, (_,i)=>String(i+1));
+  if (mode==='custom'){
+    const arr=(customStr||'').split(',').map(s=>s.trim()).filter(Boolean);
+    if (arr.length!==n) throw new Error(`Custom labels count (${arr.length}) must equal n (${n}).`);
+    const set=new Set(arr); if (set.size!==arr.length) throw new Error('Custom labels must be unique.');
+    return arr;
+  }
+  return Array.from({length:n}, (_,i)=>lettersLabel(i));
+}
+function nextNewLabel(mode, used){
+  if (mode==='numbers'){
+    let i=1; while(used.has(String(i))) i++; return String(i);
+  }
+  if (mode==='letters'){
+    let i=0; while(used.has(lettersLabel(i))) i++; return lettersLabel(i);
+  }
+  // custom: prompt
+  let label = prompt('Enter new vertex label (unique):');
+  if (!label) throw new Error('Cancelled');
+  label = label.trim();
+  if (used.has(label)) throw new Error('Label already exists.');
+  return label;
+}
+
+/* ====== Parse edges from textarea ====== */
+function parseEdges(text, labels){
+  const labelSet=new Set(labels);
+  const set=new Set(); const list=[];
+  for (const raw of text.split(/\n+/)){
+    const line=raw.trim(); if(!line) continue;
+    const parts=line.replace(/[,\t]+/g,' ').split(/\s+/); if(parts.length<2) continue;
+    const u=parts[0], v=parts[1];
+    if(!labelSet.has(u)||!labelSet.has(v)) throw new Error(`Unknown vertex in edge "${line}".`);
+    if(u===v) continue;
+    const key = u<v?`${u}|${v}`:`${v}|${u}`;
+    if(!set.has(key)){ set.add(key); list.push([u,v]); }
+  }
+  return list;
+}
+
+/* ====== Layout nodes on a circle ====== */
+function layoutCircle(labels){
+  const cx=400, cy=280, r=200;
+  return labels.map((id,i)=>{ const ang=-Math.PI/2+(2*Math.PI*i/labels.length); return {id, x:cx+r*Math.cos(ang), y:cy+r*Math.sin(ang)}; });
+}
+
+/* ====== Draw graph ====== */
+function draw(){
+  nodeById = new Map(); edgeEls = []; gEdges.innerHTML=''; gNodes.innerHTML='';
+  // edges
+  for (const [u,v] of edges){
+    const nu=nodes.find(n=>n.id===u), nv=nodes.find(n=>n.id===v);
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',nu.x); line.setAttribute('y1',nu.y); line.setAttribute('x2',nv.x); line.setAttribute('y2',nv.y);
+    line.setAttribute('class','edge'); line.dataset.u=u; line.dataset.v=v; gEdges.appendChild(line); edgeEls.push(line);
+    line.addEventListener('click',()=>{ if (edit.mode==='delE' && state.phase==='idle'){ removeEdge(u,v); } });
+  }
+  // nodes
+  for (const n of nodes){
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('class','node'); g.dataset.id=n.id;
+    const c=document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('cx',n.x); c.setAttribute('cy',n.y); c.setAttribute('r',28);
+    const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',n.x); t.setAttribute('y',n.y+6); t.setAttribute('text-anchor','middle'); t.textContent=n.id;
+    g.appendChild(c); g.appendChild(t); gNodes.appendChild(g); nodeById.set(n.id,g);
+
+    g.addEventListener('click',()=>{
+      if (state.phase!=='idle') return; // block while running
+      if (edit.mode==='addE') { selectForEdge(n.id); return; }
+      if (edit.mode==='delV') { removeVertex(n.id); return; }
+      // default: set start
+      state.start=n.id; startSelect.value=n.id; for (const [id,el] of nodeById) el.classList.remove('current'); g.classList.add('current'); explain(`Start node set to <b>${n.id}</b>.`);
+    });
+  }
+  // pointer cursor for deletable edges
+  edgeEls.forEach(e=> e.classList.toggle('clickable', edit.mode==='delE'));
+}
+
+/* ====== Adjacency ====== */
+function rebuildAdj(){ adj=new Map(nodes.map(n=>[n.id,[]])); for(const [u,v] of edges){ adj.get(u).push(v); adj.get(v).push(u);} for(const [k,list] of adj) list.sort(); }
+
+/* ====== Sync form from graph ====== */
+function syncForm(){
+  const labels = nodes.map(n=>n.id);
+  qs('nVerts').value = labels.length;
+  qs('mEdges').value = edges.length;
+  // edgesText lines ordered lexicographically
+  const lines = edges.map(([u,v])=>u<v?`${u} ${v}`:`${v} ${u}`).sort();
+  qs('edgesText').value = lines.join('\n');
+  syncStartSelect(labels);
+}
+
+/* ====== BFS Engine ====== */
+const state = { start:'A', phase:'idle', queue:[], visited:new Set(), order:[], current:null, neighborList:[], timer:null, speed:1 };
+function setPhase(p){ state.phase=p; statusText.textContent=`Status: ${p}`; qs('btnPlay').disabled=(p==='running'||p==='finished'); qs('btnPause').disabled=!(p==='running'); qs('btnStep').disabled=(p==='running'||p==='finished'); }
+function reset(){ for (const [id, el] of nodeById){ el.classList.remove('queued','current','done','pick'); } edgeEls.forEach(e=>e.classList.remove('hl')); state.queue=[]; state.visited=new Set(); state.order=[]; state.current=null; state.neighborList=[]; updateQueue(state.queue); updateOrder(state.order); setHL([]); setPhase('idle'); explain(`Graph ready. Choose start (${state.start}) then Play/Step. Editing mode: <b>${edit.mode}</b>.`);} 
+function step(){ if (state.phase==='finished') return; if (state.phase==='idle'){ setPhase('paused'); const s=state.start; if(!nodeById.has(s)){ state.start = nodes[0]?.id || ''; if(!state.start){ explain('Empty graph. Add vertices first.'); return; } } const s2=state.start; state.queue.push(s2); state.visited.add(s2); nodeById.get(s2)?.classList.add('queued'); updateQueue(state.queue); setHL([1,2]); explain(`Initialize: enqueue <b>${s2}</b>, mark visited.`); return; }
+  if (!state.current){ if (state.queue.length===0){ setPhase('finished'); setHL([]); explain(`BFS done. Order: <b>${state.order.join(' → ')}</b>.`); return; } const u=state.queue.shift(); state.current=u; state.neighborList=[...(adj.get(u)||[])]; nodeById.get(u)?.classList.remove('queued'); nodeById.get(u)?.classList.add('current'); state.order.push(u); updateQueue(state.queue); updateOrder(state.order); setHL([3,4]); explain(`Dequeue <b>${u}</b>. Explore neighbors: <b>${state.neighborList.join(', ')||'—'}</b>.`); return; }
+  if (state.neighborList.length){ const u=state.current; const v=state.neighborList.shift(); highlightEdge(u,v); if (!state.visited.has(v)){ state.visited.add(v); state.queue.push(v); nodeById.get(v)?.classList.add('queued'); updateQueue(state.queue); setHL([5,6,7]); explain(`Neighbor <b>${v}</b> unvisited → mark + enqueue.`); } else { setHL([5,6]); explain(`Neighbor <b>${v}</b> already visited → skip.`); } return; }
+  const done=state.current; nodeById.get(done)?.classList.remove('current'); nodeById.get(done)?.classList.add('done'); state.current=null; setHL([3]); explain(`Finished <b>${done}</b>. Continue while queue not empty.`); }
+function play(){ if (state.phase==='finished') return; if (state.phase==='idle') step(); setPhase('running'); runTimer(); }
+function runTimer(){ clearInterval(state.timer); const base=700, interval=base/state.speed; state.timer=setInterval(()=>{ step(); if (state.phase==='finished') pause(); }, interval); }
+function pause(){ clearInterval(state.timer); setPhase('paused'); }
+function highlightEdge(u,v){ const match=edgeEls.find(e=> (e.dataset.u===u && e.dataset.v===v) || (e.dataset.u===v && e.dataset.v===u)); if(!match) return; match.classList.add('hl'); setTimeout(()=>match.classList.remove('hl'), 600); }
+
+// wire BFS controls
+qs('btnStep').addEventListener('click', step); qs('btnPlay').addEventListener('click', play); qs('btnPause').addEventListener('click', pause); qs('btnReset').addEventListener('click', ()=>{ pause(); reset(); });
+const speed = qs('speed'); const speedVal = qs('speedVal'); speed.addEventListener('input', ()=>{ state.speed=Number(speed.value); speedVal.textContent=`${state.speed.toFixed(2).replace(/\.00$/,'')}x`.replace('.25','¼').replace('.50','½').replace('.75','¾'); if (state.phase==='running') runTimer(); }); state.speed=Number(speed.value); speed.dispatchEvent(new Event('input'));
+
+/* ====== UI: Build/Random/Sample ====== */
+const nVerts = qs('nVerts'); const mEdges = qs('mEdges'); const labelMode = qs('labelMode'); const customLbl = qs('customLbl'); const customLabels = qs('customLabels'); const edgesText = qs('edgesText');
+labelMode.addEventListener('change',()=>{ customLbl.style.display = labelMode.value==='custom' ? 'block':'none'; });
+function syncStartSelect(labels){ startSelect.innerHTML=''; for (const id of labels){ const opt=document.createElement('option'); opt.value=id; opt.textContent=id; startSelect.appendChild(opt);} if(labels.length){ startSelect.value = labels.includes(state.start)? state.start : labels[0]; state.start = startSelect.value; }}
+startSelect.addEventListener('change',()=>{ if (state.phase!=='idle') return; state.start = startSelect.value; for (const [id, el] of nodeById) el.classList.remove('current'); nodeById.get(state.start)?.classList.add('current'); explain(`Start node set to <b>${state.start}</b>.`); });
+
+function buildFromUI(){
+  error('');
+  const n = Math.max(2, Math.min(26, Number(nVerts.value)||6));
+  let labels; try { labels = makeLabels(n, labelMode.value, customLabels.value); } catch(e){ error(e.message); return; }
+  let list; try { list = parseEdges(edgesText.value, labels); } catch(e){ error(e.message); return; }
+  const maxM=n*(n-1)/2; if(list.length>maxM){ error(`Too many edges: ${list.length} > ${maxM}.`); return; }
+  if(mEdges.value && Number(mEdges.value)!==list.length){ error(`m (${mEdges.value}) doesn't match lines parsed (${list.length}). Update m or edges.`); return; }
+  nodes = layoutCircle(labels); edges = list; rebuildAdj(); draw(); syncStartSelect(labels); reset();
+}
+qs('btnBuild').addEventListener('click', buildFromUI);
+qs('btnSample').addEventListener('click', ()=>{ nVerts.value=6; labelMode.value='letters'; customLbl.style.display='none'; customLabels.value=''; edgesText.value='A B\nA C\nB D\nB E\nC F\nC E'; mEdges.value=6; buildFromUI(); });
+function randomGraph(){ error(''); const n=Math.max(2, Math.min(26, Number(nVerts.value)||6)); let labels; try{ labels=makeLabels(n, labelMode.value, customLabels.value);}catch(e){ error(e.message); return;} const maxM=n*(n-1)/2; let m=Number(mEdges.value)||Math.min(maxM, n+1); m=Math.max(0, Math.min(maxM, m)); const pairs=[]; for(let i=0;i<n;i++) for(let j=i+1;j<n;j++) pairs.push([labels[i], labels[j]]); for(let i=pairs.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pairs[i],pairs[j]]=[pairs[j],pairs[i]]; } const list=pairs.slice(0,m); edgesText.value=list.map(([u,v])=>`${u} ${v}`).join('\n'); buildFromUI(); }
+qs('btnRandom').addEventListener('click', randomGraph);
+
+/* ====== Editing modes ====== */
+const edit = { mode:'none', pick:null };
+function setMode(m){ edit.mode=m; edit.pick=null; document.querySelectorAll('.toolbar button').forEach(b=>b.classList.remove('modeActive')); if(m==='addV') qs('modeAddV').classList.add('modeActive'); if(m==='delV') qs('modeDelV').classList.add('modeActive'); if(m==='addE') qs('modeAddE').classList.add('modeActive'); if(m==='delE') qs('modeDelE').classList.add('modeActive'); if(m==='none') qs('modeNone').classList.add('modeActive'); edgeEls.forEach(e=> e.classList.toggle('clickable', m==='delE')); explainEditHint(); }
+function explainEditHint(){
+  const map={
+    none:'Editing off. Click a node to set start, then Play/Step.',
+    addV:'Add Vertex: a new vertex will be added and auto‑placed on the circle.',
+    delV:'Delete Vertex: click a node to remove it (and its incident edges).',
+    addE:'Add Edge: click two nodes to connect them. Duplicate edges are ignored.',
+    delE:'Delete Edge: click the edge line to remove it.'
+  }; editHint.innerHTML=map[edit.mode];
+}
+qs('modeAddV').addEventListener('click', ()=>{ if(state.phase!=='idle'){ alert('Pause/Reset BFS before editing.'); return;} addVertex(); });
+qs('modeDelV').addEventListener('click', ()=>{ if(state.phase!=='idle'){ alert('Pause/Reset BFS before editing.'); return;} setMode('delV'); });
+qs('modeAddE').addEventListener('click', ()=>{ if(state.phase!=='idle'){ alert('Pause/Reset BFS before editing.'); return;} setMode('addE'); });
+qs('modeDelE').addEventListener('click', ()=>{ if(state.phase!=='idle'){ alert('Pause/Reset BFS before editing.'); return;} setMode('delE'); });
+qs('modeNone').addEventListener('click', ()=> setMode('none'));
+
+function addVertex(){
+  try{
+    const used = new Set(nodes.map(n=>n.id));
+    const mode = labelMode.value; // letters/numbers/custom
+    const id = nextNewLabel(mode, used);
+    const labels = [...used, id];
+    // re-layout all including new id
+    const newNodes = layoutCircle(Array.from(labels));
+    nodes = newNodes;
+    // no edges connected yet
+    rebuildAdj(); draw(); syncForm(); setMode('none'); reset();
+    explain(`Added vertex <b>${id}</b>. Now you can use Add Edge to connect it.`);
+  }catch(e){ if(e && e.message!=='Cancelled') error(e.message); }
+}
+
+function removeVertex(id){
+  // remove node and incident edges
+  nodes = nodes.filter(n=>n.id!==id);
+  edges = edges.filter(([u,v])=> u!==id && v!==id);
+  // relayout remaining nodes to keep circle tidy
+  const labels = nodes.map(n=>n.id);
+  nodes = layoutCircle(labels);
+  if(!labels.includes(state.start)) state.start = labels[0]||'';
+  rebuildAdj(); draw(); syncForm(); setMode('none'); reset();
+  explain(`Removed vertex <b>${id}</b> and its incident edges.`);
+}
+
+function hasEdge(u,v){ const key=u<v?`${u}|${v}`:`${v}|${u}`; return edges.some(([a,b])=> (a<b?`${a}|${b}`:`${b}|${a}`)===key); }
+function addEdge(u,v){ if(u===v) return; if(hasEdge(u,v)) { explain('Edge already exists.'); return;} edges.push(u<v?[u,v]:[v,u]); rebuildAdj(); draw(); syncForm(); reset(); explain(`Added edge <b>${u}–${v}</b>.`); }
+function removeEdge(u,v){ edges = edges.filter(([a,b])=> !((a===u && b===v)||(a===v && b===u))); rebuildAdj(); draw(); syncForm(); reset(); explain(`Removed edge <b>${u}–${v}</b>.`); }
+
+function selectForEdge(id){
+  if(!edit.pick){ edit.pick=id; for (const [nid, el] of nodeById) el.classList.toggle('pick', nid===id); explain(`Add Edge: picked <b>${id}</b>. Now click another node.`); }
+  else{ const u=edit.pick, v=id; for (const [nid, el] of nodeById) el.classList.remove('pick'); edit.pick=null; if(u!==v) addEdge(u,v); }
+}
+
+/* ====== Initial sample ====== */
+qs('btnSample').click(); setMode('none');
+</script>
+</body>
+</html>
